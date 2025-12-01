@@ -8,7 +8,7 @@ import java.util.Queue;
 
 public class Planificador {
     private Queue<HiloProceso> colaListos;
-    private MemoriaFisica memoria; // Referencia al módulo del Estudiante 3
+    private MemoriaFisica memoria; 
     private String algoritmo;
 
     public Planificador(MemoriaFisica memoria, String algoritmo) {
@@ -27,11 +27,20 @@ public class Planificador {
         
         while (!colaListos.isEmpty()) {
             HiloProceso procesoActual = obtenerSiguiente();
-            
-            // EN LA RONDA 3 AGREGAREMOS LA VALIDACIÓN DE MEMORIA AQUÍ
-            // Por ahora, asumimos que pasa directo:
-            
-            procesoActual.run(); // Ejecuta el hilo
+            PCB pcb = procesoActual.getPcb();
+
+            System.out.println("\n[Planificador] Intentando ejecutar P" + pcb.getPid());
+            // 1. Preguntamos a Memoria si tiene las páginas
+            boolean memoriaLista = memoria.cargarPaginas(pcb.getPid(), pcb.getPaginasRequeridas());
+
+            if (memoriaLista) {
+                // 2. Si hay memoria, ejecutamos
+                memoria.imprimirEstado(); // Ver cómo quedó la RAM
+                procesoActual.run(); 
+            } else {
+                // 3. Si falla (simulación), lo bloqueamos o reintentamos
+                System.out.println("! BLOQUEADO: P" + pcb.getPid() + " esperando memoria...");
+            }
         }
     }
 
