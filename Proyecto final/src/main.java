@@ -13,7 +13,7 @@ import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
-        System.out.println("=== CONFIGURANDO SISTEMA OPERATIVO ===");
+        System.out.println(" CONFIGURANDO SISTEMA OPERATIVO ");
 
         // 1. Configuración de Hardware y Módulos
         int numMarcos = 4; // Puedes cambiar esto para probar con menos memoria
@@ -68,7 +68,7 @@ public class Main {
                 paginas.add(Integer.parseInt(p));
             }
 
-            // Crear objetos
+            // Crea objetos
             PCB pcb = new PCB(pid, llegada, rafaga, paginas);
             HiloProceso proceso = new HiloProceso(pcb, cpu);
             
