@@ -29,17 +29,15 @@ public class Main {
 
         // 2. Carga de Procesos desde archivo
         try {
-            cargarProcesosDesdeArchivo("inputs/procesos.txt", cpu, planificador);
+            cargarProcesosDesdeArchivo("src/inputs/procesos.txt", cpu, planificador);
         } catch (FileNotFoundException e) {
             System.err.println("ERROR: No se encontró el archivo inputs/procesos.txt");
             return;
         }
 
         System.out.println("Procesos cargados en la cola.");
-
-        // 3. Inicio de Simulación
-        // NOTA: Aún no iniciamos la simulación (planificador.iniciarSimulacion())
-        // porque esperamos a que el Estudiante 2 y 3 terminen su lógica interna en esta ronda.
+        
+        planificador.iniciarSimulacion();
         System.out.println("Sistema listo. Esperando señal de inicio (Ronda 3)...");
     }
 

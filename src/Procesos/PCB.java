@@ -24,5 +24,11 @@ public class PCB {
     public int getTiempoRafaga() { return tiempoRafaga; }
     public List<Integer> getPaginasRequeridas() { return paginasRequeridas; }
     public String getEstado() { return estado; }
+
+    public int getTiempoRestante() { return tiempoRestante; }
+
+    public void actualizarTiempoRestante(int tiempoEjecutado) {
+        this.tiempoRestante -= tiempoEjecutado;
+    }
     public void setEstado(String estado) { this.estado = estado; }
 }
