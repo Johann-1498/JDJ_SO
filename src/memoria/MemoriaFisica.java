@@ -1,58 +1,61 @@
 package Memoria;
 
 import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.Queue;
 import java.util.List;
 
 public class MemoriaFisica {
     private int[] marcos; // -1 = libre, >0 = PID del proceso dueño
     private int tamanioMarco;
-    private Queue<Integer> colaFIFO; // Para el algoritmo FIFO
+    private AlgoritmosReemplazo.EstrategiaReemplazo estrategia;
     private int fallosPagina;
-    private String algoritmoReemplazo; // "FIFO", "LRU", "OPTIMO"
-
+    private int reemplazosRealizados;
+    private String algoritmoActual;
+    
+    // Para mapeo marco->página (necesario para algunos algoritmos)
+    private int[] paginaEnMarco; // Qué página está en cada marco
+    
     public MemoriaFisica(int cantidadMarcos, int tamanioMarco) {
-        this.marcos = new int[cantidadMarcos];
-        Arrays.fill(this.marcos, -1); // Inicializar todo como libre
-        this.tamanioMarco = tamanioMarco;
-        this.colaFIFO = new LinkedList<>();
-        this.fallosPagina = 0;
-        this.algoritmoReemplazo = "FIFO"; // Por defecto
+        this(cantidadMarcos, tamanioMarco, "FIFO");
     }
     
-    // Constructor con algoritmo configurable
     public MemoriaFisica(int cantidadMarcos, int tamanioMarco, String algoritmo) {
-        this(cantidadMarcos, tamanioMarco);
-        this.algoritmoReemplazo = algoritmo;
+        this.marcos = new int[cantidadMarcos];
+        this.paginaEnMarco = new int[cantidadMarcos];
+        Arrays.fill(this.marcos, -1);
+        Arrays.fill(this.paginaEnMarco, -1);
+        
+        this.tamanioMarco = tamanioMarco;
+        this.fallosPagina = 0;
+        this.reemplazosRealizados = 0;
+        this.algoritmoActual = algoritmo.toUpperCase();
+        
+        // Crear estrategia de reemplazo
+        this.estrategia = AlgoritmosReemplazo.crearEstrategia(algoritmo, cantidadMarcos);
+        
+        System.out.println("[Memoria] Inicializada con " + cantidadMarcos + 
+                          " marcos, algoritmo: " + this.algoritmoActual);
     }
-
+    
     /**
      * Verifica si una página específica de un proceso ya está en memoria
-     * En esta simulación simplificada, verificamos si el proceso tiene algún marco asignado
      */
     private boolean estaEnMemoria(int pid, int pagina) {
-        // Simplificación: Solo verificamos si el proceso ya tiene marcos asignados
-        // En una implementación real, tendríamos una tabla de páginas por proceso
-        for (int marco : marcos) {
-            if (marco == pid) {
-                // El proceso ya tiene al menos una página en memoria
+        for (int i = 0; i < marcos.length; i++) {
+            if (marcos[i] == pid && paginaEnMarco[i] == pagina) {
+                // Notificar acceso para algoritmos como LRU
+                estrategia.notificarAcceso(i);
                 return true;
             }
         }
-        return false; // Para esta simulación, forzamos verificación de espacio
+        return false;
     }
-
+    
     /**
      * Intenta cargar las páginas de un proceso en memoria
-     * @param pid ID del proceso
-     * @param paginas Lista de páginas requeridas
-     * @return true si se pudieron cargar todas las páginas (o simular)
      */
     public synchronized boolean cargarPaginas(int pid, List<Integer> paginas) {
-        System.out.println("[Memoria] Verificando " + paginas.size() + " páginas para P" + pid + "...");
-        
-        boolean exito = true;
+        System.out.println("\n[Memoria] Cargando " + paginas.size() + " páginas para P" + pid + 
+                          " (Algoritmo: " + algoritmoActual + ")");
         
         for (int pagina : paginas) {
             if (!estaEnMemoria(pid, pagina)) {
@@ -64,23 +67,20 @@ public class MemoriaFisica {
                 
                 if (marcoLibre != -1) {
                     // Hay marco libre
-                    asignarMarco(pid, marcoLibre, pagina);
+                    cargarEnMarco(pid, pagina, marcoLibre);
                 } else {
                     // No hay marcos libres, aplicar reemplazo
-                    exito = reemplazarPagina(pid, pagina);
+                    aplicarReemplazo(pid, pagina);
                 }
-            } else {
-                System.out.println("[Memoria] Página " + pagina + " de P" + pid + " ya está en memoria");
             }
         }
         
         imprimirEstado();
-        return exito;
+        return true;
     }
-
+    
     /**
-     * Busca un marco de memoria libre (valor -1)
-     * @return índice del marco libre, o -1 si no hay ninguno
+     * Busca un marco de memoria libre
      */
     private int buscarMarcoLibre() {
         for (int i = 0; i < marcos.length; i++) {
@@ -89,84 +89,67 @@ public class MemoriaFisica {
                 return i;
             }
         }
-        System.out.println("   -> No hay marcos libres, necesito reemplazo");
         return -1;
     }
-
+    
     /**
-     * Asigna un marco específico a un proceso
+     * Carga una página en un marco específico
      */
-    private void asignarMarco(int pid, int marco, int pagina) {
+    private void cargarEnMarco(int pid, int pagina, int marco) {
         marcos[marco] = pid;
-        colaFIFO.add(marco); // Añadir a cola FIFO para algoritmo de reemplazo
+        paginaEnMarco[marco] = pagina;
+        estrategia.notificarCarga(marco, pid);
         System.out.println("   -> P" + pid + " página " + pagina + " cargada en Marco " + marco);
     }
-
+    
     /**
-     * Aplica algoritmo de reemplazo cuando no hay marcos libres
+     * Aplica algoritmo de reemplazo
      */
-    private boolean reemplazarPagina(int pid, int pagina) {
-        System.out.println("   -> Aplicando algoritmo de reemplazo: " + algoritmoReemplazo);
+    private void aplicarReemplazo(int pid, int pagina) {
+        System.out.println("   -> Memoria llena. Aplicando " + algoritmoActual + "...");
         
-        int marcoVictima = -1;
-        int procesoVictima = -1;
+        // Seleccionar víctima según el algoritmo
+        int marcoVictima = estrategia.seleccionarVictima(marcos, pid, pagina, 0);
         
-        if (algoritmoReemplazo.equals("FIFO")) {
-            // Algoritmo FIFO: el primero que entró es el primero que sale
-            marcoVictima = colaFIFO.poll(); // Obtiene y remueve el primero
-            procesoVictima = marcos[marcoVictima];
-            
-            System.out.println("   -> REEMPLAZO (FIFO): Marco " + marcoVictima + 
-                             " liberado (era de P" + procesoVictima + ")");
-            
-            // Reasignar el marco al nuevo proceso
-            marcos[marcoVictima] = pid;
-            colaFIFO.add(marcoVictima); // Vuelve a entrar a la cola (pero ahora con nuevo PID)
-            
-            System.out.println("   -> P" + pid + " página " + pagina + 
-                             " ahora ocupa Marco " + marcoVictima);
-            
-            return true;
-        } else if (algoritmoReemplazo.equals("LRU")) {
-            // Para LRU necesitarías estructuras adicionales
-            System.out.println("   -> LRU no implementado aún, usando FIFO como fallback");
-            return reemplazarPagina(pid, pagina); // Llama recursivamente con FIFO
-        } else if (algoritmoReemplazo.equals("OPTIMO")) {
-            System.out.println("   -> OPTIMO no implementado aún, usando FIFO como fallback");
-            return reemplazarPagina(pid, pagina);
+        if (marcoVictima == -1) {
+            // Fallback: usar el primer marco ocupado
+            for (int i = 0; i < marcos.length; i++) {
+                if (marcos[i] != -1) {
+                    marcoVictima = i;
+                    break;
+                }
+            }
         }
         
-        return false;
+        int procesoVictima = marcos[marcoVictima];
+        int paginaVictima = paginaEnMarco[marcoVictima];
+        
+        System.out.println("   -> REEMPLAZO: Marco " + marcoVictima + 
+                         " liberado (P" + procesoVictima + " página " + paginaVictima + ")");
+        
+        // Reemplazar
+        reemplazosRealizados++;
+        cargarEnMarco(pid, pagina, marcoVictima);
     }
-
+    
     /**
      * Libera todos los marcos asignados a un proceso
      */
     public synchronized void liberarProceso(int pid) {
-        System.out.println("[Memoria] Liberando páginas de P" + pid + "...");
+        System.out.println("\n[Memoria] Liberando páginas de P" + pid + "...");
         int liberados = 0;
         
         for (int i = 0; i < marcos.length; i++) {
             if (marcos[i] == pid) {
-                marcos[i] = -1; // Liberar marco
-                
-                // También debemos remover de la cola FIFO si está ahí
-                colaFIFO.remove(Integer.valueOf(i));
-                
-                System.out.println("   -> Marco " + i + " liberado");
+                marcos[i] = -1;
+                paginaEnMarco[i] = -1;
                 liberados++;
             }
         }
         
-        if (liberados > 0) {
-            System.out.println("   -> Total: " + liberados + " marcos liberados de P" + pid);
-        } else {
-            System.out.println("   -> P" + pid + " no tenía páginas en memoria");
-        }
-        
-        imprimirEstado();
+        System.out.println("   -> " + liberados + " marcos liberados de P" + pid);
     }
-
+    
     /**
      * Imprime el estado actual de la memoria
      */
@@ -177,13 +160,18 @@ public class MemoriaFisica {
             if (marcos[i] == -1) {
                 contenido = "L"; // Libre
             } else {
-                contenido = "P" + marcos[i];
+                contenido = "P" + marcos[i] + "(" + paginaEnMarco[i] + ")";
             }
             System.out.print("[" + i + ":" + contenido + "] ");
         }
-        System.out.println("(Fallos: " + fallosPagina + ")");
+        System.out.println("(Fallos: " + fallosPagina + ", Reemplazos: " + reemplazosRealizados + ")");
+        
+        // Si es LRU, mostrar estado adicional
+        if (estrategia instanceof AlgoritmosReemplazo.LRU) {
+            ((AlgoritmosReemplazo.LRU)estrategia).imprimirEstadoLRU();
+        }
     }
-
+    
     /**
      * Obtiene estadísticas de memoria
      */
@@ -192,19 +180,33 @@ public class MemoriaFisica {
         System.out.println("Total de marcos: " + marcos.length);
         System.out.println("Tamaño por marco: " + tamanioMarco + " KB");
         System.out.println("Fallos de página: " + fallosPagina);
-        System.out.println("Algoritmo de reemplazo: " + algoritmoReemplazo);
+        System.out.println("Reemplazos realizados: " + reemplazosRealizados);
+        System.out.println("Algoritmo de reemplazo: " + algoritmoActual);
         
         int marcosOcupados = 0;
         for (int marco : marcos) {
             if (marco != -1) marcosOcupados++;
         }
+        
+        double usoPorcentaje = (marcosOcupados * 100.0) / marcos.length;
         System.out.println("Marcos ocupados: " + marcosOcupados + "/" + marcos.length);
-        System.out.println("Porcentaje de uso: " + 
-                          String.format("%.1f", (marcosOcupados * 100.0 / marcos.length)) + "%");
+        System.out.printf("Porcentaje de uso: %.1f%%\n", usoPorcentaje);
+        System.out.printf("Tasa de fallos: %.2f%%\n", 
+            (fallosPagina > 0 ? (reemplazosRealizados * 100.0 / fallosPagina) : 0));
     }
-
-    // Getters y Setters
+    
+    /**
+     * Cambia el algoritmo de reemplazo en tiempo de ejecución
+     */
+    public void cambiarAlgoritmo(String nuevoAlgoritmo) {
+        System.out.println("[Memoria] Cambiando algoritmo de " + algoritmoActual + 
+                         " a " + nuevoAlgoritmo.toUpperCase());
+        this.algoritmoActual = nuevoAlgoritmo.toUpperCase();
+        this.estrategia = AlgoritmosReemplazo.crearEstrategia(nuevoAlgoritmo, marcos.length);
+    }
+    
+    // Getters
     public int getFallosPagina() { return fallosPagina; }
-    public void setAlgoritmoReemplazo(String algoritmo) { this.algoritmoReemplazo = algoritmo; }
-    public String getAlgoritmoReemplazo() { return algoritmoReemplazo; }
+    public int getReemplazosRealizados() { return reemplazosRealizados; }
+    public String getAlgoritmoActual() { return algoritmoActual; }
 }
