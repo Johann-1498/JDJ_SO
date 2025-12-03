@@ -17,7 +17,17 @@ public class HiloProceso extends Thread {
 
     @Override
     public void run() {
-        // En la Ronda 2 llenaremos esto con la lógica real
-        System.out.println("Proceso " + pcb.getPid() + " listo para iniciar.");
+        try {
+            pcb.setEstado("EJECUTANDO");
+            System.out.println(">>> Hilo P" + pcb.getPid() + " inicia ejecución.");
+            
+            // Simular trabajo usando la CPU (Clase del Estudiante 1)
+            cpu.ejecutarRafaga(pcb.getTiempoRafaga());
+            
+            pcb.setEstado("TERMINADO");
+            System.out.println("<<< Hilo P" + pcb.getPid() + " finalizó.");
+        } catch (InterruptedException e) {
+            System.out.println("Error en Hilo P" + pcb.getPid());
+        }
     }
 }
