@@ -3,12 +3,7 @@ import Nucleo.*;
 import Procesos.HiloProceso;
 import Procesos.PCB;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
 
 public class Main {
     public static void main(String[] args) {
@@ -33,10 +28,10 @@ public class Main {
         System.out.print("Algoritmo de reemplazo [FIFO|LRU|OPTIMO] (default FIFO): ");
         String algoritmoMem = leerString(scanner, "FIFO").toUpperCase();
         
-        int quantum = 3;
+        int quantum = 2;
         if (algoritmoPlan.equals("RR")) {
-            System.out.print("Quantum para RR (default 3): ");
-            quantum = leerEntero(scanner, 3);
+            System.out.print("Quantum para RR (default 2): ");
+            quantum = leerEntero(scanner, 2);
         }
         
         // 2. Inicializar módulos
@@ -57,11 +52,24 @@ public class Main {
         // 3. Cargar procesos
         System.out.println("\n=== CARGA DE PROCESOS ===");
         
-        // Crear procesos de ejemplo (simplificado)
-        crearProcesosEjemplo(cpu, planificador);
+        // Crear procesos de ejemplo SIMPLES para evitar problemas
+        List<PCB> procesos = crearProcesosSimples(cpu, planificador);
+        
+        System.out.println("\nResumen de procesos cargados:");
+        for (PCB pcb : procesos) {
+            System.out.printf("  P%d: %d ráfagas, %d páginas, Tiempo total: %d, Prioridad: %d\n",
+                pcb.getPid(), pcb.getRafagas().size(), pcb.getPaginasRequeridas().size(),
+                pcb.getTiempoRafagaTotal(), pcb.getPrioridad());
+        }
         
         // 4. Ejecutar simulación
         System.out.println("\n=== INICIANDO SIMULACIÓN ===");
+        System.out.println("La simulación se ejecutará automáticamente...");
+        
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {}
+        
         planificador.iniciarSimulacion();
         
         // 5. Mostrar resultados
@@ -69,6 +77,7 @@ public class Main {
         planificador.imprimirMetricas();
         memoria.imprimirEstadisticas();
         
+        System.out.println("\n=== FIN DE LA SIMULACIÓN ===");
         scanner.close();
     }
     
@@ -87,30 +96,40 @@ public class Main {
         return input.isEmpty() ? defaultValue : input;
     }
     
-    private static void crearProcesosEjemplo(CPU cpu, Planificador planificador) {
-        System.out.println("Creando 4 procesos de ejemplo...");
+    private static List<PCB> crearProcesosSimples(CPU cpu, Planificador planificador) {
+        System.out.println("Creando procesos simples...");
         
-        // Usar Arrays.asList para Java 8
-        List<String> rafagas1 = Arrays.asList("CPU(4)", "E/S(2)", "CPU(3)");
-        List<Integer> paginas1 = Arrays.asList(1, 2, 3);
+        List<PCB> procesos = new ArrayList<>();
+        
+        // Proceso 1: Simple, corto
+        List<String> rafagas1 = Arrays.asList("CPU(2)", "E/S(1)", "CPU(1)");
+        List<Integer> paginas1 = Arrays.asList(1, 2);
         PCB pcb1 = new PCB(1, 0, rafagas1, 1, paginas1);
         planificador.agregarProceso(new HiloProceso(pcb1, cpu));
+        procesos.add(pcb1);
         
-        List<String> rafagas2 = Arrays.asList("CPU(6)", "E/S(3)", "CPU(2)");
-        List<Integer> paginas2 = Arrays.asList(4, 5);
-        PCB pcb2 = new PCB(2, 1, rafagas2, 2, paginas2);
+        // Proceso 2: Simple, corto
+        List<String> rafagas2 = Arrays.asList("CPU(1)", "E/S(1)", "CPU(2)");
+        List<Integer> paginas2 = Arrays.asList(3, 4);
+        PCB pcb2 = new PCB(2, 0, rafagas2, 2, paginas2);
         planificador.agregarProceso(new HiloProceso(pcb2, cpu));
+        procesos.add(pcb2);
         
-        List<String> rafagas3 = Arrays.asList("CPU(5)", "E/S(1)", "CPU(4)");
-        List<Integer> paginas3 = Arrays.asList(1, 2, 6, 7);
-        PCB pcb3 = new PCB(3, 2, rafagas3, 1, paginas3);
+        // Proceso 3: Simple, corto
+        List<String> rafagas3 = Arrays.asList("CPU(3)", "E/S(2)", "CPU(1)");
+        List<Integer> paginas3 = Arrays.asList(1, 5);
+        PCB pcb3 = new PCB(3, 0, rafagas3, 1, paginas3);
         planificador.agregarProceso(new HiloProceso(pcb3, cpu));
+        procesos.add(pcb3);
         
-        List<String> rafagas4 = Arrays.asList("CPU(3)", "E/S(2)", "CPU(2)");
-        List<Integer> paginas4 = Arrays.asList(1, 3, 5);
-        PCB pcb4 = new PCB(4, 3, rafagas4, 3, paginas4);
+        // Proceso 4: Simple, corto
+        List<String> rafagas4 = Arrays.asList("CPU(1)", "E/S(1)", "CPU(1)");
+        List<Integer> paginas4 = Arrays.asList(2, 6);
+        PCB pcb4 = new PCB(4, 0, rafagas4, 3, paginas4);
         planificador.agregarProceso(new HiloProceso(pcb4, cpu));
+        procesos.add(pcb4);
         
-        System.out.println("✓ 4 procesos de ejemplo creados");
+        System.out.println("✓ " + procesos.size() + " procesos simples creados");
+        return procesos;
     }
 }

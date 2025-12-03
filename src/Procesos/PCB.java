@@ -6,12 +6,14 @@ public class PCB {
     private int pid;
     private int tiempoLlegada;
     private List<String> rafagas;
-    private int tiempoRestante;
+    private int tiempoTotal;
+    private int tiempoEjecutado;
     private List<Integer> paginasRequeridas;
     private String estado;
     private int prioridad;
     private int indiceRafagaActual;
     private int tiempoBloqueoRestante;
+    private int tiempoEjecucionRestanteEnRafaga;
     private int tiempoInicioEjecucion;
     private int tiempoFinEjecucion;
     
@@ -24,20 +26,41 @@ public class PCB {
         this.estado = "NUEVO";
         this.indiceRafagaActual = 0;
         this.tiempoBloqueoRestante = 0;
-        this.tiempoRestante = calcularTiempoTotal();
+        this.tiempoTotal = calcularTiempoTotal();
+        this.tiempoEjecutado = 0;
         this.tiempoInicioEjecucion = -1;
         this.tiempoFinEjecucion = -1;
+        
+        // Inicializar tiempo restante en la primera ráfaga
+        if (rafagas.size() > 0) {
+            String primeraRafaga = rafagas.get(0);
+            if (primeraRafaga.startsWith("CPU")) {
+                this.tiempoEjecucionRestanteEnRafaga = obtenerTiempoRafaga(primeraRafaga);
+                this.estado = "LISTO";
+            }
+        }
     }
     
     private int calcularTiempoTotal() {
         int total = 0;
         for (String rafaga : rafagas) {
-            String[] partes = rafaga.split("[()]");
-            if (partes.length >= 2) {
-                total += Integer.parseInt(partes[1]);
-            }
+            total += obtenerTiempoRafaga(rafaga);
         }
         return total;
+    }
+    
+    private int obtenerTiempoRafaga(String rafaga) {
+        if (rafaga.contains("(")) {
+            String[] partes = rafaga.split("[()]");
+            if (partes.length >= 2) {
+                try {
+                    return Integer.parseInt(partes[1]);
+                } catch (NumberFormatException e) {
+                    return 0;
+                }
+            }
+        }
+        return 0;
     }
     
     public String getRafagaActual() {
@@ -48,12 +71,7 @@ public class PCB {
     }
     
     public int getTiempoRafagaActual() {
-        String rafaga = getRafagaActual();
-        if (rafaga.contains("(")) {
-            String[] partes = rafaga.split("[()]");
-            return Integer.parseInt(partes[1]);
-        }
-        return 0;
+        return obtenerTiempoRafaga(getRafagaActual());
     }
     
     public boolean esRafagaCPU() {
@@ -66,56 +84,80 @@ public class PCB {
         return rafaga.startsWith("E/S");
     }
     
-    public void avanzarRafaga() {
+    public void avanzarASiguienteRafaga() {
         indiceRafagaActual++;
-        if (indiceRafagaActual < rafagas.size()) {
-            String siguiente = rafagas.get(indiceRafagaActual);
-            if (siguiente.startsWith("E/S")) {
-                estado = "BLOQUEADO";
-                String[] partes = siguiente.split("[()]");
-                tiempoBloqueoRestante = Integer.parseInt(partes[1]);
-            } else if (siguiente.startsWith("CPU")) {
-                estado = "LISTO";
-            }
-        } else {
+        
+        if (indiceRafagaActual >= rafagas.size()) {
             estado = "TERMINADO";
+            tiempoBloqueoRestante = 0;
+            tiempoEjecucionRestanteEnRafaga = 0;
+            tiempoFinEjecucion = tiempoInicioEjecucion + tiempoTotal;
+            return;
+        }
+        
+        String siguienteRafaga = rafagas.get(indiceRafagaActual);
+        if (siguienteRafaga.startsWith("CPU")) {
+            estado = "LISTO";
+            tiempoEjecucionRestanteEnRafaga = obtenerTiempoRafaga(siguienteRafaga);
+        } else if (siguienteRafaga.startsWith("E/S")) {
+            estado = "BLOQUEADO";
+            tiempoBloqueoRestante = obtenerTiempoRafaga(siguienteRafaga);
         }
     }
     
-    public void actualizarTiempoBloqueo(int tiempo) {
-        if (tiempoBloqueoRestante > 0) {
-            tiempoBloqueoRestante -= tiempo;
-            if (tiempoBloqueoRestante <= 0) {
-                estado = "LISTO";
-                avanzarRafaga(); // Avanzar a la siguiente ráfaga
-            }
+    public void ejecutarCPU(int tiempo) {
+        if (tiempo <= 0 || estado.equals("TERMINADO") || !esRafagaCPU()) {
+            return;
+        }
+        
+        tiempoEjecutado += tiempo;
+        tiempoEjecucionRestanteEnRafaga -= tiempo;
+        
+        if (tiempoEjecucionRestanteEnRafaga <= 0) {
+            avanzarASiguienteRafaga();
+        }
+    }
+    
+    public void avanzarBloqueo(int tiempo) {
+        if (tiempo <= 0 || !estado.equals("BLOQUEADO")) {
+            return;
+        }
+        
+        tiempoBloqueoRestante -= tiempo;
+        
+        if (tiempoBloqueoRestante <= 0) {
+            avanzarASiguienteRafaga();
         }
     }
     
     // Getters y Setters
     public int getPid() { return pid; }
     public int getTiempoLlegada() { return tiempoLlegada; }
-    public int getTiempoRafagaTotal() { return calcularTiempoTotal(); }
+    public int getTiempoRafagaTotal() { return tiempoTotal; }
     public List<Integer> getPaginasRequeridas() { return paginasRequeridas; }
     public String getEstado() { return estado; }
-    public int getTiempoRestante() { return tiempoRestante; }
+    public int getTiempoRestante() { return tiempoTotal - tiempoEjecutado; }
     public int getPrioridad() { return prioridad; }
     public int getTiempoBloqueoRestante() { return tiempoBloqueoRestante; }
     public List<String> getRafagas() { return rafagas; }
     public int getTiempoInicioEjecucion() { return tiempoInicioEjecucion; }
     public int getTiempoFinEjecucion() { return tiempoFinEjecucion; }
-    public void setTiempoInicioEjecucion(int tiempo) { this.tiempoInicioEjecucion = tiempo; }
-    public void setTiempoFinEjecucion(int tiempo) { this.tiempoFinEjecucion = tiempo; }
     
-    public void actualizarTiempoRestante(int tiempoEjecutado) {
-        this.tiempoRestante -= tiempoEjecutado;
-        if (esRafagaCPU()) {
-            int tiempoRafaga = getTiempoRafagaActual();
-            if (tiempoEjecutado >= tiempoRafaga) {
-                avanzarRafaga();
-            }
+    public void setTiempoInicioEjecucion(int tiempo) { 
+        if (this.tiempoInicioEjecucion == -1) {
+            this.tiempoInicioEjecucion = tiempo; 
         }
     }
     
-    public void setEstado(String estado) { this.estado = estado; }
+    public void setTiempoFinEjecucion(int tiempo) { 
+        this.tiempoFinEjecucion = tiempo; 
+    }
+    
+    public void setEstado(String estado) { 
+        this.estado = estado; 
+    }
+    
+    public int getTiempoEjecucionRestanteEnRafaga() {
+        return tiempoEjecucionRestanteEnRafaga;
+    }
 }
