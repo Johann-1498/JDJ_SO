@@ -1,10 +1,12 @@
 package Procesos;
 
 import java.util.List;
+import java.util.Queue;
 
 public class PCB {
     private int pid;
     private int tiempoLlegada;
+<<<<<<< HEAD
     private List<String> rafagas;
     private int tiempoTotal;
     private int tiempoEjecutado;
@@ -16,14 +18,24 @@ public class PCB {
     private int tiempoEjecucionRestanteEnRafaga;
     private int tiempoInicioEjecucion;
     private int tiempoFinEjecucion;
+=======
+    // Cola de ráfagas (CPU o E/S)
+    private Queue<Rafaga> rafagas; 
+    private List<Integer> paginasRequeridas;
+    private String estado;
+>>>>>>> 7271c7e410f4fd1dd9c0e4ceeac1f02b69cab14c
     
-    public PCB(int pid, int tiempoLlegada, List<String> rafagas, int prioridad, List<Integer> paginas) {
+    // Métricas
+    private int tiempoFinalizacion;
+    private int tiempoCPUUtilizado;
+
+    public PCB(int pid, int tiempoLlegada, Queue<Rafaga> rafagas, List<Integer> paginas) {
         this.pid = pid;
         this.tiempoLlegada = tiempoLlegada;
         this.rafagas = rafagas;
-        this.prioridad = prioridad;
         this.paginasRequeridas = paginas;
         this.estado = "NUEVO";
+<<<<<<< HEAD
         this.indiceRafagaActual = 0;
         this.tiempoBloqueoRestante = 0;
         this.tiempoTotal = calcularTiempoTotal();
@@ -39,8 +51,14 @@ public class PCB {
                 this.estado = "LISTO";
             }
         }
+=======
+        this.tiempoCPUUtilizado = 0;
+>>>>>>> 7271c7e410f4fd1dd9c0e4ceeac1f02b69cab14c
     }
+
+    // --- MÉTODOS DE GESTIÓN DE RÁFAGAS (Aquí estaba tu error) ---
     
+<<<<<<< HEAD
     private int calcularTiempoTotal() {
         int total = 0;
         for (String rafaga : rafagas) {
@@ -72,13 +90,21 @@ public class PCB {
     
     public int getTiempoRafagaActual() {
         return obtenerTiempoRafaga(getRafagaActual());
-    }
-    
+=======
     public boolean esRafagaCPU() {
-        String rafaga = getRafagaActual();
-        return rafaga.startsWith("CPU");
+        return rafagas.peek() != null && rafagas.peek().getTipo() == Rafaga.Tipo.CPU;
     }
     
+    public int getTiempoRafagaActual() {
+        return rafagas.peek() != null ? rafagas.peek().getDuracion() : 0;
+>>>>>>> 7271c7e410f4fd1dd9c0e4ceeac1f02b69cab14c
+    }
+    
+    public Rafaga getRafagaActual() {
+        return rafagas.peek();
+    }
+    
+<<<<<<< HEAD
     public boolean esRafagaES() {
         String rafaga = getRafagaActual();
         return rafaga.startsWith("E/S");
@@ -159,5 +185,43 @@ public class PCB {
     
     public int getTiempoEjecucionRestanteEnRafaga() {
         return tiempoEjecucionRestanteEnRafaga;
+=======
+    // ¡ESTE ES EL MÉTODO QUE TE FALTABA!
+    public void completarRafagaActual() {
+        if (!rafagas.isEmpty()) {
+            rafagas.poll(); // Saca la ráfaga de la cabeza de la cola
+        }
+    }
+    
+    public void actualizarTiempoRestante(int tiempoEjecutado) {
+        Rafaga actual = rafagas.peek();
+        if (actual != null) {
+            actual.decrementarDuracion(tiempoEjecutado);
+            if (actual.getDuracion() <= 0) {
+                rafagas.poll(); // Ya terminó, la sacamos
+            }
+        }
+    }
+    
+    public boolean haTerminado() {
+        return rafagas.isEmpty();
+    }
+
+    // --- GETTERS Y SETTERS ---
+    public int getPid() { return pid; }
+    public int getTiempoLlegada() { return tiempoLlegada; }
+    public List<Integer> getPaginasRequeridas() { return paginasRequeridas; }
+    public String getEstado() { return estado; }
+    public void setEstado(String estado) { this.estado = estado; }
+    
+    // --- MÉTRICAS ---
+    public void registrarFin(int tiempoActual) { this.tiempoFinalizacion = tiempoActual; }
+    public void agregarTiempoCPU(int t) { this.tiempoCPUUtilizado += t; }
+    
+    public int getTiempoRetorno() { return tiempoFinalizacion - tiempoLlegada; }
+    public int getTiempoEspera() { 
+        int retorno = getTiempoRetorno();
+        return (retorno > tiempoCPUUtilizado) ? (retorno - tiempoCPUUtilizado) : 0; 
+>>>>>>> 7271c7e410f4fd1dd9c0e4ceeac1f02b69cab14c
     }
 }

@@ -3,15 +3,24 @@ package Nucleo;
 import Memoria.MemoriaFisica;
 import Procesos.HiloProceso;
 import Procesos.PCB;
+<<<<<<< HEAD
 import java.util.*;
+=======
+import Procesos.Rafaga;
+
+import java.util.Comparator;
+import java.util.LinkedList;
+import java.util.Collections;
+import java.util.List;
+import java.util.ArrayList;
+>>>>>>> 7271c7e410f4fd1dd9c0e4ceeac1f02b69cab14c
 
 public class Planificador {
     private LinkedList<HiloProceso> colaListos;
-    private LinkedList<HiloProceso> colaBloqueados;
+    private List<PCB> procesosTerminados; // Para el reporte final
     private MemoriaFisica memoria;
-    private String algoritmo;
-    private int quantum;
     private Reloj reloj;
+<<<<<<< HEAD
     
     // Métricas
     private int tiempoTotalEjecucion;
@@ -22,11 +31,18 @@ public class Planificador {
     private List<HiloProceso> procesosTerminados;
     
     public Planificador(MemoriaFisica memoria, String algoritmo, int quantum, Reloj reloj) {
+=======
+    private String algoritmo;
+    private int quantum = 3;
+
+    // Constructor actualizado (Main debe coincidir con esto)
+    public Planificador(MemoriaFisica memoria, String algoritmo, Reloj reloj) {
+>>>>>>> 7271c7e410f4fd1dd9c0e4ceeac1f02b69cab14c
         this.memoria = memoria;
         this.algoritmo = algoritmo;
-        this.quantum = quantum;
         this.reloj = reloj;
         this.colaListos = new LinkedList<>();
+<<<<<<< HEAD
         this.colaBloqueados = new LinkedList<>();
         
         // Inicializar métricas
@@ -35,10 +51,13 @@ public class Planificador {
         this.tiemposRetorno = new HashMap<>();
         this.tiemposLlegada = new HashMap<>();
         this.tiemposInicio = new HashMap<>();
+=======
+>>>>>>> 7271c7e410f4fd1dd9c0e4ceeac1f02b69cab14c
         this.procesosTerminados = new ArrayList<>();
     }
-    
+
     public void agregarProceso(HiloProceso proceso) {
+<<<<<<< HEAD
         PCB pcb = proceso.getPcb();
         pcb.setEstado("LISTO");
         colaListos.add(proceso);
@@ -46,9 +65,14 @@ public class Planificador {
         tiemposEspera.put(pcb.getPid(), 0);
         
         log("Proceso P" + pcb.getPid() + " agregado a cola de listos");
+=======
+        colaListos.add(proceso);
+        proceso.getPcb().setEstado("LISTO");
+>>>>>>> 7271c7e410f4fd1dd9c0e4ceeac1f02b69cab14c
     }
-    
+
     public void iniciarSimulacion() {
+<<<<<<< HEAD
         System.out.println("\n╔══════════════════════════════════════════╗");
         System.out.println("║   INICIANDO SIMULACIÓN - " + algoritmo + "   ║");
         System.out.println("╚══════════════════════════════════════════╝\n");
@@ -261,8 +285,71 @@ public class Planificador {
         for (HiloProceso proceso : colaBloqueados) {
             PCB pcb = proceso.getPcb();
             pcb.avanzarBloqueo(tiempo);
+=======
+        System.out.println("--- Planificador Iniciado (" + algoritmo + ") ---");
+
+        while (!colaListos.isEmpty()) {
+            ordenarCola();
+            HiloProceso procesoActual = colaListos.poll();
+            PCB pcb = procesoActual.getPcb();
+
+            // 1. Verificar Memoria
+            if (!memoria.cargarPaginas(pcb.getPid(), pcb.getPaginasRequeridas())) {
+                // Si falla, al final de la cola (simulación simple)
+                colaListos.add(procesoActual);
+                continue; 
+            }
+
+            // 2. Verificar tipo de ráfaga (CPU o E/S)
+            Rafaga rafaga = pcb.getRafagaActual();
+            
+            if (rafaga.getTipo() == Rafaga.Tipo.ES) {
+                // MANEJO DE E/S (Simulado)
+                System.out.println(">>> P" + pcb.getPid() + " Bloqueado por E/S (" + rafaga.getDuracion() + "s)");
+                pcb.setEstado("BLOQUEADO");
+                // Simular paso del tiempo de E/S
+                reloj.avanzarTiempo(rafaga.getDuracion());
+                pcb.completarRafagaActual(); // Termina la E/S
+                pcb.setEstado("LISTO");
+                colaListos.add(procesoActual); // Vuelve a cola de listos
+                
+            } else {
+                // MANEJO DE CPU
+                int tiempoDisponible = (algoritmo.equals("RR")) ? quantum : rafaga.getDuracion();
+                int tiempoEjecutar = Math.min(tiempoDisponible, rafaga.getDuracion());
+
+                System.out.println(">>> P" + pcb.getPid() + " Ejecutando CPU por " + tiempoEjecutar + "s");
+                pcb.setEstado("EJECUTANDO");
+                
+                // Simular ejecución
+                try {
+                    Thread.sleep(tiempoEjecutar * 100); 
+                } catch (InterruptedException e) {}
+                
+                reloj.avanzarTiempo(tiempoEjecutar);
+                pcb.agregarTiempoCPU(tiempoEjecutar);
+                rafaga.decrementarDuracion(tiempoEjecutar);
+
+                if (rafaga.getDuracion() <= 0) {
+                    pcb.completarRafagaActual(); // Rafaga CPU terminada
+                }
+
+                if (pcb.haTerminado()) {
+                    System.out.println("<<< P" + pcb.getPid() + " FINALIZADO.");
+                    pcb.setEstado("TERMINADO");
+                    pcb.registrarFin(reloj.getTiempo());
+                    memoria.liberarProceso(pcb.getPid());
+                    procesosTerminados.add(pcb);
+                } else {
+                    // Si no terminó (por Quantum o porque viene E/S)
+                    colaListos.add(procesoActual);
+                }
+            }
+>>>>>>> 7271c7e410f4fd1dd9c0e4ceeac1f02b69cab14c
         }
+        imprimirReporteFinal();
     }
+<<<<<<< HEAD
     
     private int calcularTiempoMinimoBloqueo() {
         int minTiempo = Integer.MAX_VALUE;
@@ -279,15 +366,30 @@ public class Planificador {
         if (algoritmo.equals("SJF")) {
             Collections.sort(colaListos, Comparator.comparingInt(p -> 
                 p.getPcb().getTiempoRafagaTotal()));
+=======
+
+    private void ordenarCola() {
+        if (algoritmo.equals("SJF")) {
+            // Ordenar por duración de la ráfaga actual de CPU
+            Collections.sort(colaListos, (p1, p2) -> 
+                p1.getPcb().getRafagaActual().getDuracion() - p2.getPcb().getRafagaActual().getDuracion());
+>>>>>>> 7271c7e410f4fd1dd9c0e4ceeac1f02b69cab14c
         }
     }
-    
-    public void imprimirMetricas() {
-        System.out.println("\n=== MÉTRICAS DE PLANIFICACIÓN ===");
-        System.out.println("Algoritmo utilizado: " + algoritmo);
-        if (algoritmo.equals("RR")) {
-            System.out.println("Quantum: " + quantum);
+
+    private void imprimirReporteFinal() {
+        System.out.println("\n=== REPORTE DE MÉTRICAS ===");
+        System.out.println("PID | Llegada | Fin | Retorno | Espera");
+        double promRetorno = 0, promEspera = 0;
+        
+        for (PCB p : procesosTerminados) {
+            System.out.printf("%3d | %7d | %3d | %7d | %6d%n", 
+                p.getPid(), p.getTiempoLlegada(), p.getTiempoLlegada() + p.getTiempoRetorno(), 
+                p.getTiempoRetorno(), p.getTiempoEspera());
+            promRetorno += p.getTiempoRetorno();
+            promEspera += p.getTiempoEspera();
         }
+<<<<<<< HEAD
         
         int procesosCompletados = procesosTerminados.size();
         
@@ -339,5 +441,10 @@ public class Planificador {
     
     private void log(String mensaje) {
         System.out.println("[t=" + reloj.getTiempo() + "] " + mensaje);
+=======
+        System.out.println("-----------------------------------");
+        System.out.printf("Promedios: Retorno=%.2f, Espera=%.2f%n", 
+            promRetorno/procesosTerminados.size(), promEspera/procesosTerminados.size());
+>>>>>>> 7271c7e410f4fd1dd9c0e4ceeac1f02b69cab14c
     }
 }
