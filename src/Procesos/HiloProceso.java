@@ -5,29 +5,42 @@ import Nucleo.CPU;
 public class HiloProceso extends Thread {
     private PCB pcb;
     private CPU cpu;
-
+    
     public HiloProceso(PCB pcb, CPU cpu) {
         this.pcb = pcb;
         this.cpu = cpu;
     }
-
+    
     public PCB getPcb() {
         return pcb;
     }
-
+    
     @Override
     public void run() {
         try {
             pcb.setEstado("EJECUTANDO");
-            System.out.println(">>> Hilo P" + pcb.getPid() + " inicia ejecución.");
             
-            // Simular trabajo usando la CPU (Clase del Estudiante 1)
-            cpu.ejecutarRafaga(pcb.getTiempoRafaga());
+            // Ejecutar ráfaga CPU actual
+            if (pcb.esRafagaCPU()) {
+                int tiempoRafaga = pcb.getTiempoRafagaActual();
+                cpu.ejecutarRafaga(tiempoRafaga);
+                pcb.actualizarTiempoRestante(tiempoRafaga);
+                
+                // Verificar si sigue con E/S
+                if (pcb.getEstado().equals("BLOQUEADO")) {
+                    System.out.println("P" + pcb.getPid() + " entra en E/S por " + 
+                                     pcb.getTiempoBloqueoRestante() + " unidades");
+                    Thread.sleep(pcb.getTiempoBloqueoRestante() * 100);
+                    pcb.actualizarTiempoBloqueo(pcb.getTiempoBloqueoRestante());
+                }
+            }
             
-            pcb.setEstado("TERMINADO");
-            System.out.println("<<< Hilo P" + pcb.getPid() + " finalizó.");
+            if (pcb.getEstado().equals("TERMINADO")) {
+                System.out.println("P" + pcb.getPid() + " ha terminado completamente");
+            }
+            
         } catch (InterruptedException e) {
-            System.out.println("Error en Hilo P" + pcb.getPid());
+            System.out.println("Hilo P" + pcb.getPid() + " interrumpido");
         }
     }
 }

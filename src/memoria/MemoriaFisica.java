@@ -205,6 +205,17 @@ public class MemoriaFisica {
         this.estrategia = AlgoritmosReemplazo.crearEstrategia(nuevoAlgoritmo, marcos.length);
     }
     
+    /**
+     * Verifica si hay suficiente memoria disponible
+     */
+    public synchronized boolean hayMemoriaDisponible(int paginasRequeridas) {
+        int marcosLibres = 0;
+        for (int marco : marcos) {
+            if (marco == -1) marcosLibres++;
+        }
+        return marcosLibres >= paginasRequeridas;
+    }
+    
     // Getters
     public int getFallosPagina() { return fallosPagina; }
     public int getReemplazosRealizados() { return reemplazosRealizados; }
