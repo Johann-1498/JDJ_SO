@@ -1,5 +1,12 @@
+<<<<<<< HEAD
 import Memoria.MemoriaFisica;
 import Nucleo.*;
+=======
+import memoria.MemoriaFisica;
+import Nucleo.CPU;
+import Nucleo.Planificador;
+import Nucleo.Reloj;
+>>>>>>> 146ef368bef9156d6835f054910c6e79b2af3ef5
 import Procesos.HiloProceso;
 import Procesos.PCB;
 
@@ -12,6 +19,7 @@ import java.util.Scanner;
 
 public class Main {
     public static void main(String[] args) {
+<<<<<<< HEAD
         Scanner scanner = new Scanner(System.in);
         
         System.out.println("╔════════════════════════════════════════╗");
@@ -46,6 +54,44 @@ public class Main {
         CPU cpu = new CPU();
         MemoriaFisica memoria = new MemoriaFisica(numMarcos, tamanoMarco, algoritmoMem);
         Planificador planificador = new Planificador(memoria, algoritmoPlan, quantum, reloj);
+=======
+        System.out.println("=========================================");
+        System.out.println("   SIMULADOR DE SISTEMA OPERATIVO v1.0   ");
+        System.out.println("=========================================");
+
+        // 1. Configuración (Podrías pedirla por Scanner scanner.nextLine() si quisieras interactividad)
+        // Valores definidos para la prueba final
+        int numMarcos = 4;        // Poca memoria para forzar fallos de página
+        int tamanoMarco = 4096;
+        String algoritmoCPU = "FCFS"; // Prueba cambiar a "SJF" o "RR" después
+        String algoritmoMemoria = "FIFO";
+
+        System.out.println("[CONFIG] Algoritmo CPU: " + algoritmoCPU);
+        System.out.println("[CONFIG] Algoritmo Memoria: " + algoritmoMemoria);
+        System.out.println("[CONFIG] Marcos de RAM: " + numMarcos);
+        System.out.println("-----------------------------------------");
+
+        // 2. Inicialización de Componentes
+        Reloj reloj = new Reloj();
+        CPU cpu = new CPU();
+        MemoriaFisica memoria = new MemoriaFisica(numMarcos, tamanoMarco);
+        Planificador planificador = new Planificador(memoria, algoritmoCPU);
+
+        // 3. Carga de Procesos
+        try {
+            cargarProcesosDesdeArchivo("inputs/procesos.txt", cpu, planificador);
+        } catch (FileNotFoundException e) {
+            System.err.println("ERROR CRITICO: No se encontró inputs/procesos.txt");
+            System.exit(1);
+        }
+
+        System.out.println("-----------------------------------------");
+        System.out.println("Iniciando simulación ahora...");
+        System.out.println("-----------------------------------------\n");
+
+        // 4. EJECUCIÓN DEL SISTEMA (Aquí ocurre la magia)
+        long inicio = System.currentTimeMillis();
+>>>>>>> 146ef368bef9156d6835f054910c6e79b2af3ef5
         
         System.out.println("✓ Reloj del sistema inicializado");
         System.out.println("✓ CPU inicializada");
@@ -84,6 +130,7 @@ public class Main {
         // 4. Iniciar simulación
         System.out.println("\n=== INICIANDO SIMULACIÓN ===");
         planificador.iniciarSimulacion();
+<<<<<<< HEAD
         
         // 5. Mostrar métricas finales
         System.out.println("\n=== MÉTRICAS FINALES ===");
@@ -91,6 +138,18 @@ public class Main {
         memoria.imprimirEstadisticas();
         
         scanner.close();
+=======
+
+        long fin = System.currentTimeMillis();
+        
+        // 5. Reporte Final
+        System.out.println("\n=========================================");
+        System.out.println("       SIMULACIÓN FINALIZADA CON ÉXITO     ");
+        System.out.println("=========================================");
+        System.out.println("Tiempo total de simulación (real): " + (fin - inicio) + " ms");
+        System.out.println("Estado final de la RAM:");
+        memoria.imprimirEstado();
+>>>>>>> 146ef368bef9156d6835f054910c6e79b2af3ef5
     }
     
     private static int leerEntero(Scanner scanner, int defaultValue) {
@@ -127,6 +186,7 @@ public class Main {
         File archivo = new File(ruta);
         Scanner scanner = new Scanner(archivo);
         
+<<<<<<< HEAD
         System.out.println("Leyendo archivo: " + ruta);
         int contador = 0;
 
@@ -207,3 +267,32 @@ public class Main {
         System.out.println("✓ 3 procesos de ejemplo creados");
     }
 }
+=======
+        int cont = 0;
+        while (scanner.hasNextLine()) {
+            String linea = scanner.nextLine().trim();
+            if (linea.isEmpty() || linea.startsWith("#")) continue; 
+
+            String[] partes = linea.split(" ");
+            
+            int pid = Integer.parseInt(partes[0]);
+            int llegada = Integer.parseInt(partes[1]);
+            int rafaga = Integer.parseInt(partes[2]);
+            
+            String[] pagsStr = partes[3].split(",");
+            List<Integer> paginas = new ArrayList<>();
+            for (String p : pagsStr) {
+                paginas.add(Integer.parseInt(p));
+            }
+
+            PCB pcb = new PCB(pid, llegada, rafaga, paginas);
+            HiloProceso proceso = new HiloProceso(pcb, cpu);
+            planificador.agregarProceso(proceso);
+            cont++;
+        }
+        scanner.close();
+        System.out.println("[CARGADOR] Se han cargado " + cont + " procesos en cola de Listos.");
+    }
+}
+
+>>>>>>> 146ef368bef9156d6835f054910c6e79b2af3ef5
