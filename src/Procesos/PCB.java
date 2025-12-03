@@ -1,121 +1,78 @@
 package Procesos;
 
 import java.util.List;
+import java.util.Queue;
 
 public class PCB {
     private int pid;
     private int tiempoLlegada;
-    private List<String> rafagas;
-    private int tiempoRestante;
+    // Cola de ráfagas (CPU o E/S)
+    private Queue<Rafaga> rafagas; 
     private List<Integer> paginasRequeridas;
     private String estado;
-    private int prioridad;
-    private int indiceRafagaActual;
-    private int tiempoBloqueoRestante;
-    private int tiempoInicioEjecucion;
-    private int tiempoFinEjecucion;
     
-    public PCB(int pid, int tiempoLlegada, List<String> rafagas, int prioridad, List<Integer> paginas) {
+    // Métricas
+    private int tiempoFinalizacion;
+    private int tiempoCPUUtilizado;
+
+    public PCB(int pid, int tiempoLlegada, Queue<Rafaga> rafagas, List<Integer> paginas) {
         this.pid = pid;
         this.tiempoLlegada = tiempoLlegada;
         this.rafagas = rafagas;
-        this.prioridad = prioridad;
         this.paginasRequeridas = paginas;
         this.estado = "NUEVO";
-        this.indiceRafagaActual = 0;
-        this.tiempoBloqueoRestante = 0;
-        this.tiempoRestante = calcularTiempoTotal();
-        this.tiempoInicioEjecucion = -1;
-        this.tiempoFinEjecucion = -1;
+        this.tiempoCPUUtilizado = 0;
     }
+
+    // --- MÉTODOS DE GESTIÓN DE RÁFAGAS (Aquí estaba tu error) ---
     
-    private int calcularTiempoTotal() {
-        int total = 0;
-        for (String rafaga : rafagas) {
-            String[] partes = rafaga.split("[()]");
-            if (partes.length >= 2) {
-                total += Integer.parseInt(partes[1]);
-            }
-        }
-        return total;
-    }
-    
-    public String getRafagaActual() {
-        if (indiceRafagaActual < rafagas.size()) {
-            return rafagas.get(indiceRafagaActual);
-        }
-        return "TERMINADO";
+    public boolean esRafagaCPU() {
+        return rafagas.peek() != null && rafagas.peek().getTipo() == Rafaga.Tipo.CPU;
     }
     
     public int getTiempoRafagaActual() {
-        String rafaga = getRafagaActual();
-        if (rafaga.contains("(")) {
-            String[] partes = rafaga.split("[()]");
-            return Integer.parseInt(partes[1]);
-        }
-        return 0;
+        return rafagas.peek() != null ? rafagas.peek().getDuracion() : 0;
     }
     
-    public boolean esRafagaCPU() {
-        String rafaga = getRafagaActual();
-        return rafaga.startsWith("CPU");
+    public Rafaga getRafagaActual() {
+        return rafagas.peek();
     }
     
-    public boolean esRafagaES() {
-        String rafaga = getRafagaActual();
-        return rafaga.startsWith("E/S");
-    }
-    
-    public void avanzarRafaga() {
-        indiceRafagaActual++;
-        if (indiceRafagaActual < rafagas.size()) {
-            String siguiente = rafagas.get(indiceRafagaActual);
-            if (siguiente.startsWith("E/S")) {
-                estado = "BLOQUEADO";
-                String[] partes = siguiente.split("[()]");
-                tiempoBloqueoRestante = Integer.parseInt(partes[1]);
-            } else if (siguiente.startsWith("CPU")) {
-                estado = "LISTO";
-            }
-        } else {
-            estado = "TERMINADO";
+    // ¡ESTE ES EL MÉTODO QUE TE FALTABA!
+    public void completarRafagaActual() {
+        if (!rafagas.isEmpty()) {
+            rafagas.poll(); // Saca la ráfaga de la cabeza de la cola
         }
     }
-    
-    public void actualizarTiempoBloqueo(int tiempo) {
-        if (tiempoBloqueoRestante > 0) {
-            tiempoBloqueoRestante -= tiempo;
-            if (tiempoBloqueoRestante <= 0) {
-                estado = "LISTO";
-                avanzarRafaga(); // Avanzar a la siguiente ráfaga
-            }
-        }
-    }
-    
-    // Getters y Setters
-    public int getPid() { return pid; }
-    public int getTiempoLlegada() { return tiempoLlegada; }
-    public int getTiempoRafagaTotal() { return calcularTiempoTotal(); }
-    public List<Integer> getPaginasRequeridas() { return paginasRequeridas; }
-    public String getEstado() { return estado; }
-    public int getTiempoRestante() { return tiempoRestante; }
-    public int getPrioridad() { return prioridad; }
-    public int getTiempoBloqueoRestante() { return tiempoBloqueoRestante; }
-    public List<String> getRafagas() { return rafagas; }
-    public int getTiempoInicioEjecucion() { return tiempoInicioEjecucion; }
-    public int getTiempoFinEjecucion() { return tiempoFinEjecucion; }
-    public void setTiempoInicioEjecucion(int tiempo) { this.tiempoInicioEjecucion = tiempo; }
-    public void setTiempoFinEjecucion(int tiempo) { this.tiempoFinEjecucion = tiempo; }
     
     public void actualizarTiempoRestante(int tiempoEjecutado) {
-        this.tiempoRestante -= tiempoEjecutado;
-        if (esRafagaCPU()) {
-            int tiempoRafaga = getTiempoRafagaActual();
-            if (tiempoEjecutado >= tiempoRafaga) {
-                avanzarRafaga();
+        Rafaga actual = rafagas.peek();
+        if (actual != null) {
+            actual.decrementarDuracion(tiempoEjecutado);
+            if (actual.getDuracion() <= 0) {
+                rafagas.poll(); // Ya terminó, la sacamos
             }
         }
     }
     
+    public boolean haTerminado() {
+        return rafagas.isEmpty();
+    }
+
+    // --- GETTERS Y SETTERS ---
+    public int getPid() { return pid; }
+    public int getTiempoLlegada() { return tiempoLlegada; }
+    public List<Integer> getPaginasRequeridas() { return paginasRequeridas; }
+    public String getEstado() { return estado; }
     public void setEstado(String estado) { this.estado = estado; }
+    
+    // --- MÉTRICAS ---
+    public void registrarFin(int tiempoActual) { this.tiempoFinalizacion = tiempoActual; }
+    public void agregarTiempoCPU(int t) { this.tiempoCPUUtilizado += t; }
+    
+    public int getTiempoRetorno() { return tiempoFinalizacion - tiempoLlegada; }
+    public int getTiempoEspera() { 
+        int retorno = getTiempoRetorno();
+        return (retorno > tiempoCPUUtilizado) ? (retorno - tiempoCPUUtilizado) : 0; 
+    }
 }

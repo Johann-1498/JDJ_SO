@@ -1,4 +1,4 @@
-package memoria;
+package Memoria;
 
 public class MMU {
     // Clase auxiliar para traducir direcciones lógicas a físicas

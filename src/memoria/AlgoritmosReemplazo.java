@@ -1,4 +1,4 @@
-package memoria;
+package Memoria;
 
 import java.util.*;
 

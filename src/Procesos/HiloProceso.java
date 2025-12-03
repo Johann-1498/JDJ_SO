@@ -1,10 +1,14 @@
 package Procesos;
 
-import Nucleo.CPU;
+import Nucleo.CPU; // Se mantiene por compatibilidad, aunque Planificador gestiona el tiempo
 
 public class HiloProceso extends Thread {
     private PCB pcb;
-    private CPU cpu;
+    
+    // Eliminamos el campo 'cpu' si no se usa para limpiar el Warning
+    // O lo dejamos si quieres mantener la estructura, pero lo quitamos del constructor si molesta
+    @SuppressWarnings("unused") 
+    private CPU cpu; 
     
     public HiloProceso(PCB pcb, CPU cpu) {
         this.pcb = pcb;
@@ -17,28 +21,12 @@ public class HiloProceso extends Thread {
     
     @Override
     public void run() {
-        try {
-            pcb.setEstado("EJECUTANDO");
-            
-            // Ejecutar ráfaga CPU actual
-            if (pcb.esRafagaCPU()) {
-                int tiempoRafaga = pcb.getTiempoRafagaActual();
-                
-                // Simular tiempo de CPU
-                for (int i = 0; i < tiempoRafaga; i++) {
-                    Thread.sleep(100); // 100ms = 1 unidad de tiempo
-                    System.out.print(".");
-                }
-                System.out.println(" Hecho.");
-                
-                pcb.actualizarTiempoRestante(tiempoRafaga);
-                
-                // Si la siguiente ráfaga es E/S, se bloqueará automáticamente
-                // El planificador manejará el estado BLOQUEADO
-            }
-            
-        } catch (InterruptedException e) {
-            System.out.println("Hilo P" + pcb.getPid() + " interrumpido");
-        }
+        // En esta arquitectura avanzada, el PLANIFICADOR gestiona la ejecución
+        // paso a paso dentro de su bucle while.
+        // Este método run() se deja simple o vacío porque no usamos start() tradicional
+        // sino que simulamos el flujo en el hilo principal del Planificador.
+        
+        // Si quisieras usar hilos reales concurrentes, aquí iría la lógica,
+        // pero eso hace muy difícil implementar Round Robin y E/S simulada correctamente.
     }
 }
