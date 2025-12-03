@@ -3,9 +3,19 @@ package Nucleo;
 public class Reloj {
     private int tiempoActual = 0;
     
-    public void tic() {
+    public synchronized void tic() {
         tiempoActual++;
     }
     
-    public int getTiempo() { return tiempoActual; }
+    public synchronized void setTiempo(int tiempo) {
+        this.tiempoActual = tiempo;
+    }
+    
+    public synchronized void avanzarTiempo(int unidades) {
+        this.tiempoActual += unidades;
+    }
+    
+    public synchronized int getTiempo() { 
+        return tiempoActual; 
+    }
 }

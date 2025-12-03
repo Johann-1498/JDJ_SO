@@ -5,81 +5,159 @@ import java.util.List;
 public class PCB {
     private int pid;
     private int tiempoLlegada;
-    private int prioridad;
-    private List<Rafaga> rafagas;
+    private List<String> rafagas;
+    private int tiempoTotal;
+    private int tiempoEjecutado;
     private List<Integer> paginasRequeridas;
-    private String estado; // "NUEVO", "LISTO", "EJECUTANDO", "BLOQUEADO_MEM", "BLOQUEADO_ES", "TERMINADO"
+    private String estado;
+    private int prioridad;
+    private int indiceRafagaActual;
+    private int tiempoBloqueoRestante;
+    private int tiempoEjecucionRestanteEnRafaga;
+    private int tiempoInicioEjecucion;
+    private int tiempoFinEjecucion;
     
-    // Métricas
-    private int tiempoInicio;
-    private int tiempoFin;
-    private int tiempoEspera;
-    private int tiempoRetorno;
-    
-    // Para planificación
-    private int rafagaActual;
-    private int tiempoEnCPU;
-    
-    public PCB(int pid, int tiempoLlegada, int prioridad, 
-               List<Rafaga> rafagas, List<Integer> paginasRequeridas) {
+    public PCB(int pid, int tiempoLlegada, List<String> rafagas, int prioridad, List<Integer> paginas) {
         this.pid = pid;
         this.tiempoLlegada = tiempoLlegada;
-        this.prioridad = prioridad;
         this.rafagas = rafagas;
-        this.paginasRequeridas = paginasRequeridas;
+        this.prioridad = prioridad;
+        this.paginasRequeridas = paginas;
         this.estado = "NUEVO";
-        this.rafagaActual = 0;
-        this.tiempoEnCPU = 0;
+        this.indiceRafagaActual = 0;
+        this.tiempoBloqueoRestante = 0;
+        this.tiempoTotal = calcularTiempoTotal();
+        this.tiempoEjecutado = 0;
+        this.tiempoInicioEjecucion = -1;
+        this.tiempoFinEjecucion = -1;
+        
+        // Inicializar tiempo restante en la primera ráfaga
+        if (rafagas.size() > 0) {
+            String primeraRafaga = rafagas.get(0);
+            if (primeraRafaga.startsWith("CPU")) {
+                this.tiempoEjecucionRestanteEnRafaga = obtenerTiempoRafaga(primeraRafaga);
+                this.estado = "LISTO";
+            }
+        }
+    }
+    
+    private int calcularTiempoTotal() {
+        int total = 0;
+        for (String rafaga : rafagas) {
+            total += obtenerTiempoRafaga(rafaga);
+        }
+        return total;
+    }
+    
+    private int obtenerTiempoRafaga(String rafaga) {
+        if (rafaga.contains("(")) {
+            String[] partes = rafaga.split("[()]");
+            if (partes.length >= 2) {
+                try {
+                    return Integer.parseInt(partes[1]);
+                } catch (NumberFormatException e) {
+                    return 0;
+                }
+            }
+        }
+        return 0;
+    }
+    
+    public String getRafagaActual() {
+        if (indiceRafagaActual < rafagas.size()) {
+            return rafagas.get(indiceRafagaActual);
+        }
+        return "TERMINADO";
+    }
+    
+    public int getTiempoRafagaActual() {
+        return obtenerTiempoRafaga(getRafagaActual());
+    }
+    
+    public boolean esRafagaCPU() {
+        String rafaga = getRafagaActual();
+        return rafaga.startsWith("CPU");
+    }
+    
+    public boolean esRafagaES() {
+        String rafaga = getRafagaActual();
+        return rafaga.startsWith("E/S");
+    }
+    
+    public void avanzarASiguienteRafaga() {
+        indiceRafagaActual++;
+        
+        if (indiceRafagaActual >= rafagas.size()) {
+            estado = "TERMINADO";
+            tiempoBloqueoRestante = 0;
+            tiempoEjecucionRestanteEnRafaga = 0;
+            tiempoFinEjecucion = tiempoInicioEjecucion + tiempoTotal;
+            return;
+        }
+        
+        String siguienteRafaga = rafagas.get(indiceRafagaActual);
+        if (siguienteRafaga.startsWith("CPU")) {
+            estado = "LISTO";
+            tiempoEjecucionRestanteEnRafaga = obtenerTiempoRafaga(siguienteRafaga);
+        } else if (siguienteRafaga.startsWith("E/S")) {
+            estado = "BLOQUEADO";
+            tiempoBloqueoRestante = obtenerTiempoRafaga(siguienteRafaga);
+        }
+    }
+    
+    public void ejecutarCPU(int tiempo) {
+        if (tiempo <= 0 || estado.equals("TERMINADO") || !esRafagaCPU()) {
+            return;
+        }
+        
+        tiempoEjecutado += tiempo;
+        tiempoEjecucionRestanteEnRafaga -= tiempo;
+        
+        if (tiempoEjecucionRestanteEnRafaga <= 0) {
+            avanzarASiguienteRafaga();
+        }
+    }
+    
+    public void avanzarBloqueo(int tiempo) {
+        if (tiempo <= 0 || !estado.equals("BLOQUEADO")) {
+            return;
+        }
+        
+        tiempoBloqueoRestante -= tiempo;
+        
+        if (tiempoBloqueoRestante <= 0) {
+            avanzarASiguienteRafaga();
+        }
     }
     
     // Getters y Setters
     public int getPid() { return pid; }
     public int getTiempoLlegada() { return tiempoLlegada; }
-    public int getPrioridad() { return prioridad; }
-    public List<Rafaga> getRafagas() { return rafagas; }
+    public int getTiempoRafagaTotal() { return tiempoTotal; }
     public List<Integer> getPaginasRequeridas() { return paginasRequeridas; }
     public String getEstado() { return estado; }
-    public void setEstado(String estado) { this.estado = estado; }
+    public int getTiempoRestante() { return tiempoTotal - tiempoEjecutado; }
+    public int getPrioridad() { return prioridad; }
+    public int getTiempoBloqueoRestante() { return tiempoBloqueoRestante; }
+    public List<String> getRafagas() { return rafagas; }
+    public int getTiempoInicioEjecucion() { return tiempoInicioEjecucion; }
+    public int getTiempoFinEjecucion() { return tiempoFinEjecucion; }
     
-    // Métricas
-    public int getTiempoInicio() { return tiempoInicio; }
-    public void setTiempoInicio(int tiempo) { this.tiempoInicio = tiempo; }
-    public int getTiempoFin() { return tiempoFin; }
-    public void setTiempoFin(int tiempo) { this.tiempoFin = tiempo; }
-    
-    public void calcularMetricas() {
-        if (tiempoFin > 0 && tiempoInicio > 0) {
-            tiempoRetorno = tiempoFin - tiempoLlegada;
-            tiempoEspera = tiempoRetorno - tiempoEnCPU;
+    public void setTiempoInicioEjecucion(int tiempo) { 
+        if (this.tiempoInicioEjecucion == -1) {
+            this.tiempoInicioEjecucion = tiempo; 
         }
     }
     
-    public int getTiempoEspera() { return tiempoEspera; }
-    public int getTiempoRetorno() { return tiempoRetorno; }
-    public int getTiempoEnCPU() { return tiempoEnCPU; }
-    public void agregarTiempoCPU(int tiempo) { tiempoEnCPU += tiempo; }
-    
-    // Manejo de ráfagas
-    public Rafaga getRafagaActual() {
-        if (rafagaActual < rafagas.size()) {
-            return rafagas.get(rafagaActual);
-        }
-        return null;
+    public void setTiempoFinEjecucion(int tiempo) { 
+        this.tiempoFinEjecucion = tiempo; 
     }
     
-    public void avanzarRafaga() {
-        rafagaActual++;
+    public void setEstado(String estado) { 
+        this.estado = estado; 
     }
     
-    public boolean tieneMasRafagas() {
-        return rafagaActual < rafagas.size();
-    }
-    
-    public int getTotalRafagasCPU() {
-        int total = 0;
-        for (Rafaga r : rafagas) {
-            if (r.esCPU()) total += r.getDuracion();
-        }
-        return total;
+    public int getTiempoEjecucionRestanteEnRafaga() {
+        return tiempoEjecucionRestanteEnRafaga;
     }
 }
