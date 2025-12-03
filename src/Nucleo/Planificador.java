@@ -1,6 +1,7 @@
 package Nucleo;
 
-import memoria.MemoriaFisica;
+// CORRECIÓN: Memoria con M mayúscula
+import Memoria.MemoriaFisica;
 import Procesos.HiloProceso;
 import Procesos.PCB;
 import java.util.*;
@@ -122,13 +123,11 @@ public class Planificador {
             log(">>> P" + pcb.getPid() + " INICIA ejecución en t=" + tiempoInicio + 
                 " (Ráfaga: " + pcb.getRafagaActual() + ")");
             
-            // Ejecutar el hilo
-            proceso.start();
-            proceso.join(); // Esperar a que termine
-            
-            // Calcular tiempo transcurrido
+            // Simular ejecución (sin usar threads reales por simplicidad)
             int tiempoEjecucion = pcb.getTiempoRafagaActual();
+            Thread.sleep(tiempoEjecucion * 100); // 100ms por unidad
             reloj.avanzarTiempo(tiempoEjecucion);
+            pcb.actualizarTiempoRestante(tiempoEjecucion);
             
             // Actualizar métricas
             int tiempoFin = reloj.getTiempo();
@@ -136,7 +135,7 @@ public class Planificador {
             tiempoTotalEjecucion += tiempoEjecucion;
             tiemposRetorno.put(pcb.getPid(), tiempoFin - tiemposLlegada.get(pcb.getPid()));
             
-            // Calcular tiempo de espera (tiempo entre llegada y primera ejecución)
+            // Calcular tiempo de espera
             int tiempoEspera = tiempoInicio - tiemposLlegada.get(pcb.getPid());
             tiemposEspera.put(pcb.getPid(), tiempoEspera);
             
@@ -195,7 +194,7 @@ public class Planificador {
                 " (Usará: " + tiempoTurno + "/" + tiempoNecesario + ")");
             
             // Simular ejecución
-            Thread.sleep(tiempoTurno * 100); // 100ms por unidad
+            Thread.sleep(tiempoTurno * 100);
             reloj.avanzarTiempo(tiempoTurno);
             
             pcb.actualizarTiempoRestante(tiempoTurno);
