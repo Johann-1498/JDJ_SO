@@ -1,6 +1,6 @@
 package Nucleo;
 
-import Memoria.MemoriaFisica;
+import memoria.MemoriaFisica;
 import Procesos.HiloProceso;
 import Procesos.PCB;
 import java.util.Comparator;
