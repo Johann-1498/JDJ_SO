@@ -23,20 +23,18 @@ public class HiloProceso extends Thread {
             // Ejecutar ráfaga CPU actual
             if (pcb.esRafagaCPU()) {
                 int tiempoRafaga = pcb.getTiempoRafagaActual();
-                cpu.ejecutarRafaga(tiempoRafaga);
+                
+                // Simular tiempo de CPU
+                for (int i = 0; i < tiempoRafaga; i++) {
+                    Thread.sleep(100); // 100ms = 1 unidad de tiempo
+                    System.out.print(".");
+                }
+                System.out.println(" Hecho.");
+                
                 pcb.actualizarTiempoRestante(tiempoRafaga);
                 
-                // Verificar si sigue con E/S
-                if (pcb.getEstado().equals("BLOQUEADO")) {
-                    System.out.println("P" + pcb.getPid() + " entra en E/S por " + 
-                                     pcb.getTiempoBloqueoRestante() + " unidades");
-                    Thread.sleep(pcb.getTiempoBloqueoRestante() * 100);
-                    pcb.actualizarTiempoBloqueo(pcb.getTiempoBloqueoRestante());
-                }
-            }
-            
-            if (pcb.getEstado().equals("TERMINADO")) {
-                System.out.println("P" + pcb.getPid() + " ha terminado completamente");
+                // Si la siguiente ráfaga es E/S, se bloqueará automáticamente
+                // El planificador manejará el estado BLOQUEADO
             }
             
         } catch (InterruptedException e) {

@@ -56,9 +56,22 @@ public class Main {
         
         // 3. Cargar procesos
         System.out.println("\n=== CARGA DE PROCESOS ===");
-        System.out.print("Ruta del archivo de procesos (default 'src/inputs/procesos.txt'): ");
+        System.out.print("Ruta del archivo de procesos (default 'inputs/procesos.txt'): ");
         String rutaArchivo = scanner.nextLine();
-        if (rutaArchivo.isEmpty()) rutaArchivo = "src/inputs/procesos.txt";
+        if (rutaArchivo.isEmpty()) rutaArchivo = "inputs/procesos.txt";
+        
+        // Crear carpeta inputs si no existe
+        File carpetaInputs = new File("inputs");
+        if (!carpetaInputs.exists()) {
+            carpetaInputs.mkdir();
+        }
+        
+        // Crear archivo de procesos si no existe
+        File archivoProcesos = new File(rutaArchivo);
+        if (!archivoProcesos.exists()) {
+            System.out.println("Creando archivo de procesos de ejemplo...");
+            crearArchivoProcesosEjemplo(rutaArchivo);
+        }
         
         try {
             cargarProcesosDesdeArchivo(rutaArchivo, cpu, planificador);
@@ -81,9 +94,9 @@ public class Main {
     }
     
     private static int leerEntero(Scanner scanner, int defaultValue) {
-        String input = scanner.nextLine();
-        if (input.isEmpty()) return defaultValue;
         try {
+            String input = scanner.nextLine();
+            if (input.isEmpty()) return defaultValue;
             return Integer.parseInt(input);
         } catch (NumberFormatException e) {
             return defaultValue;
@@ -93,6 +106,20 @@ public class Main {
     private static String leerString(Scanner scanner, String defaultValue) {
         String input = scanner.nextLine();
         return input.isEmpty() ? defaultValue : input;
+    }
+    
+    private static void crearArchivoProcesosEjemplo(String ruta) {
+        try {
+            java.io.PrintWriter writer = new java.io.PrintWriter(ruta);
+            writer.println("# Formato: PID TiempoLlegada CPU(4) E/S(2) CPU(3) Prioridad Paginas");
+            writer.println("1 0 CPU(4) E/S(2) CPU(3) 1 1,2,3");
+            writer.println("2 1 CPU(6) E/S(3) CPU(2) 2 4,5");
+            writer.println("3 2 CPU(5) E/S(1) CPU(4) 1 1,2,6,7");
+            writer.close();
+            System.out.println("✓ Archivo creado: " + ruta);
+        } catch (FileNotFoundException e) {
+            System.err.println("Error creando archivo: " + e.getMessage());
+        }
     }
     
     private static void cargarProcesosDesdeArchivo(String ruta, CPU cpu, Planificador planificador) 
@@ -105,55 +132,63 @@ public class Main {
 
         while (scanner.hasNextLine()) {
             String linea = scanner.nextLine().trim();
-            if (linea.isEmpty() || linea.startsWith("#")) continue;
+            if (linea.isEmpty() || linea.startsWith("#")) {
+                continue;
+            }
 
-            String[] partes = linea.split(" ");
+            String[] partes = linea.split("\\s+");
             
-            // Nuevo formato: PID TiempoLlegada CPU(4) E/S(2) CPU(3) Prioridad Paginas
-            int pid = Integer.parseInt(partes[0]);
-            int llegada = Integer.parseInt(partes[1]);
+            if (partes.length < 3) {
+                System.err.println("Error: línea inválida: " + linea);
+                continue;
+            }
             
-            // Parsear ráfagas (CPU y E/S)
-            List<String> rafagas = new ArrayList<>();
-            for (int i = 2; i < partes.length; i++) {
-                if (partes[i].matches("\\d+") || partes[i].contains(",")) {
-                    break; // Fin de ráfagas
+            try {
+                int pid = Integer.parseInt(partes[0]);
+                int llegada = Integer.parseInt(partes[1]);
+                
+                // Parsear ráfagas hasta encontrar números
+                List<String> rafagas = new ArrayList<>();
+                int i = 2;
+                while (i < partes.length && !partes[i].matches("\\d+") && !partes[i].contains(",")) {
+                    rafagas.add(partes[i]);
+                    i++;
                 }
-                rafagas.add(partes[i]);
-            }
-            
-            // Prioridad (opcional)
-            int prioridad = 0;
-            int indicePaginas = 2 + rafagas.size();
-            if (indicePaginas < partes.length && partes[indicePaginas].matches("\\d+")) {
-                prioridad = Integer.parseInt(partes[indicePaginas]);
-                indicePaginas++;
-            }
-            
-            // Parsear páginas
-            List<Integer> paginas = new ArrayList<>();
-            if (indicePaginas < partes.length) {
-                String[] pagsStr = partes[indicePaginas].split(",");
-                for (String p : pagsStr) {
-                    paginas.add(Integer.parseInt(p));
+                
+                // Prioridad (opcional)
+                int prioridad = 0;
+                if (i < partes.length && partes[i].matches("\\d+")) {
+                    prioridad = Integer.parseInt(partes[i]);
+                    i++;
                 }
+                
+                // Parsear páginas
+                List<Integer> paginas = new ArrayList<>();
+                if (i < partes.length) {
+                    String[] pagsStr = partes[i].split(",");
+                    for (String p : pagsStr) {
+                        paginas.add(Integer.parseInt(p.trim()));
+                    }
+                }
+                
+                PCB pcb = new PCB(pid, llegada, rafagas, prioridad, paginas);
+                HiloProceso proceso = new HiloProceso(pcb, cpu);
+                
+                planificador.agregarProceso(proceso);
+                contador++;
+                System.out.println("✓ Proceso " + pid + " cargado - " + rafagas.size() + " ráfagas, " + 
+                                 paginas.size() + " páginas");
+                
+            } catch (NumberFormatException e) {
+                System.err.println("Error parseando línea: " + linea);
             }
-            
-            PCB pcb = new PCB(pid, llegada, rafagas, prioridad, paginas);
-            HiloProceso proceso = new HiloProceso(pcb, cpu);
-            
-            planificador.agregarProceso(proceso);
-            contador++;
-            System.out.println("✓ Proceso " + pid + " cargado - " + rafagas.size() + " ráfagas, " + 
-                             paginas.size() + " páginas");
         }
         scanner.close();
         System.out.println("Total procesos cargados: " + contador);
     }
     
     private static void crearProcesosEjemplo(CPU cpu, Planificador planificador) {
-        // Crear 3 procesos de ejemplo
-        // CAMBIAR: List.of() por Arrays.asList() para Java 8
+        // Crear 3 procesos de ejemplo - USAR Arrays.asList() para Java 8
         List<String> rafagas1 = Arrays.asList("CPU(4)", "E/S(2)", "CPU(3)");
         List<Integer> paginas1 = Arrays.asList(1, 2, 3);
         PCB pcb1 = new PCB(1, 0, rafagas1, 1, paginas1);

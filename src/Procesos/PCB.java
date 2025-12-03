@@ -5,13 +5,15 @@ import java.util.List;
 public class PCB {
     private int pid;
     private int tiempoLlegada;
-    private List<String> rafagas; // Formato: "CPU(4)", "E/S(2)", "CPU(3)"
+    private List<String> rafagas;
     private int tiempoRestante;
     private List<Integer> paginasRequeridas;
     private String estado;
     private int prioridad;
     private int indiceRafagaActual;
     private int tiempoBloqueoRestante;
+    private int tiempoInicioEjecucion;
+    private int tiempoFinEjecucion;
     
     public PCB(int pid, int tiempoLlegada, List<String> rafagas, int prioridad, List<Integer> paginas) {
         this.pid = pid;
@@ -23,6 +25,8 @@ public class PCB {
         this.indiceRafagaActual = 0;
         this.tiempoBloqueoRestante = 0;
         this.tiempoRestante = calcularTiempoTotal();
+        this.tiempoInicioEjecucion = -1;
+        this.tiempoFinEjecucion = -1;
     }
     
     private int calcularTiempoTotal() {
@@ -53,7 +57,13 @@ public class PCB {
     }
     
     public boolean esRafagaCPU() {
-        return getRafagaActual().startsWith("CPU");
+        String rafaga = getRafagaActual();
+        return rafaga.startsWith("CPU");
+    }
+    
+    public boolean esRafagaES() {
+        String rafaga = getRafagaActual();
+        return rafaga.startsWith("E/S");
     }
     
     public void avanzarRafaga() {
@@ -64,6 +74,8 @@ public class PCB {
                 estado = "BLOQUEADO";
                 String[] partes = siguiente.split("[()]");
                 tiempoBloqueoRestante = Integer.parseInt(partes[1]);
+            } else if (siguiente.startsWith("CPU")) {
+                estado = "LISTO";
             }
         } else {
             estado = "TERMINADO";
@@ -75,7 +87,7 @@ public class PCB {
             tiempoBloqueoRestante -= tiempo;
             if (tiempoBloqueoRestante <= 0) {
                 estado = "LISTO";
-                avanzarRafaga();
+                avanzarRafaga(); // Avanzar a la siguiente ráfaga
             }
         }
     }
@@ -90,6 +102,10 @@ public class PCB {
     public int getPrioridad() { return prioridad; }
     public int getTiempoBloqueoRestante() { return tiempoBloqueoRestante; }
     public List<String> getRafagas() { return rafagas; }
+    public int getTiempoInicioEjecucion() { return tiempoInicioEjecucion; }
+    public int getTiempoFinEjecucion() { return tiempoFinEjecucion; }
+    public void setTiempoInicioEjecucion(int tiempo) { this.tiempoInicioEjecucion = tiempo; }
+    public void setTiempoFinEjecucion(int tiempo) { this.tiempoFinEjecucion = tiempo; }
     
     public void actualizarTiempoRestante(int tiempoEjecutado) {
         this.tiempoRestante -= tiempoEjecutado;

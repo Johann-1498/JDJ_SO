@@ -23,6 +23,7 @@ public class Planificador {
     private Map<Integer, Integer> tiemposEspera;
     private Map<Integer, Integer> tiemposRetorno;
     private Map<Integer, Integer> tiemposLlegada;
+    private Map<Integer, Integer> tiemposInicio;
     private List<String> logEjecucion;
     
     public Planificador(MemoriaFisica memoria, String algoritmo, int quantum, Reloj reloj) {
@@ -33,13 +34,14 @@ public class Planificador {
         this.colaListos = new LinkedList<>();
         this.colaBloqueados = new LinkedList<>();
         this.lock = new ReentrantLock();
-        this.semaforoCPU = new Semaphore(1); // Solo un proceso en CPU
+        this.semaforoCPU = new Semaphore(1);
         
         // Inicializar métricas
         this.tiempoTotalEjecucion = 0;
         this.tiemposEspera = new HashMap<>();
         this.tiemposRetorno = new HashMap<>();
         this.tiemposLlegada = new HashMap<>();
+        this.tiemposInicio = new HashMap<>();
         this.logEjecucion = new ArrayList<>();
     }
     
@@ -52,7 +54,7 @@ public class Planificador {
             tiemposLlegada.put(pcb.getPid(), reloj.getTiempo());
             tiemposEspera.put(pcb.getPid(), 0);
             
-            log("Proceso P" + pcb.getPid() + " agregado a cola de listos");
+            log("Proceso P" + pcb.getPid() + " agregado a cola de listos (Llegada: t=" + reloj.getTiempo() + ")");
         } finally {
             lock.unlock();
         }
@@ -64,11 +66,11 @@ public class Planificador {
         System.out.println("╚══════════════════════════════════════════╝\n");
         
         while (!colaListos.isEmpty() || !colaBloqueados.isEmpty()) {
-            // 1. Ordenar cola según algoritmo
-            ordenarCola();
-            
-            // 2. Mover procesos bloqueados a listos si terminaron E/S
+            // 1. Mover procesos bloqueados a listos si terminaron E/S
             verificarBloqueados();
+            
+            // 2. Ordenar cola según algoritmo
+            ordenarCola();
             
             // 3. Ejecutar proceso
             if (!colaListos.isEmpty()) {
@@ -78,12 +80,13 @@ public class Planificador {
                     ejecutarEstandar();
                 }
             } else if (!colaBloqueados.isEmpty()) {
-                // Si solo hay procesos bloqueados, avanzar tiempo
-                reloj.tic();
-                log("Reloj: " + reloj.getTiempo() + " - Esperando procesos bloqueados...");
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {}
+                // Si solo hay procesos bloqueados, avanzar tiempo mínimo
+                int tiempoMinBloqueo = obtenerTiempoMinimoBloqueo();
+                if (tiempoMinBloqueo > 0) {
+                    log("Todos los procesos bloqueados. Avanzando " + tiempoMinBloqueo + " unidades...");
+                    reloj.avanzarTiempo(tiempoMinBloqueo);
+                    actualizarTiemposBloqueo(tiempoMinBloqueo);
+                }
             }
         }
         
@@ -94,6 +97,8 @@ public class Planificador {
     
     private void ejecutarEstandar() {
         HiloProceso proceso = colaListos.poll();
+        if (proceso == null) return;
+        
         PCB pcb = proceso.getPcb();
         
         try {
@@ -110,21 +115,47 @@ public class Planificador {
             
             // Ejecutar
             int tiempoInicio = reloj.getTiempo();
+            pcb.setTiempoInicioEjecucion(tiempoInicio);
             pcb.setEstado("EJECUTANDO");
+            tiemposInicio.put(pcb.getPid(), tiempoInicio);
             
             log(">>> P" + pcb.getPid() + " INICIA ejecución en t=" + tiempoInicio + 
                 " (Ráfaga: " + pcb.getRafagaActual() + ")");
             
-            proceso.run();
+            // Ejecutar el hilo
+            proceso.start();
+            proceso.join(); // Esperar a que termine
+            
+            // Calcular tiempo transcurrido
+            int tiempoEjecucion = pcb.getTiempoRafagaActual();
+            reloj.avanzarTiempo(tiempoEjecucion);
             
             // Actualizar métricas
             int tiempoFin = reloj.getTiempo();
-            tiempoTotalEjecucion += (tiempoFin - tiempoInicio);
+            pcb.setTiempoFinEjecucion(tiempoFin);
+            tiempoTotalEjecucion += tiempoEjecucion;
             tiemposRetorno.put(pcb.getPid(), tiempoFin - tiemposLlegada.get(pcb.getPid()));
             
-            log("<<< P" + pcb.getPid() + " TERMINA en t=" + tiempoFin);
+            // Calcular tiempo de espera (tiempo entre llegada y primera ejecución)
+            int tiempoEspera = tiempoInicio - tiemposLlegada.get(pcb.getPid());
+            tiemposEspera.put(pcb.getPid(), tiempoEspera);
             
-            memoria.liberarProceso(pcb.getPid());
+            log("<<< P" + pcb.getPid() + " TERMINA ráfaga en t=" + tiempoFin + 
+                " (Ejecutó: " + tiempoEjecucion + " unidades)");
+            
+            // Verificar si el proceso tiene más ráfagas
+            if (pcb.getEstado().equals("BLOQUEADO")) {
+                log("P" + pcb.getPid() + " entra en E/S por " + 
+                    pcb.getTiempoBloqueoRestante() + " unidades");
+                colaBloqueados.add(proceso);
+            } else if (pcb.getEstado().equals("TERMINADO")) {
+                memoria.liberarProceso(pcb.getPid());
+                log("P" + pcb.getPid() + " ha terminado completamente");
+            } else {
+                // Vuelve a la cola de listos
+                colaListos.add(proceso);
+            }
+            
             semaforoCPU.release();
             
         } catch (InterruptedException e) {
@@ -134,6 +165,8 @@ public class Planificador {
     
     private void ejecutarRoundRobin() {
         HiloProceso proceso = colaListos.poll();
+        if (proceso == null) return;
+        
         PCB pcb = proceso.getPcb();
         
         try {
@@ -153,31 +186,45 @@ public class Planificador {
             int tiempoTurno = Math.min(quantum, tiempoNecesario);
             
             int tiempoInicio = reloj.getTiempo();
+            if (!tiemposInicio.containsKey(pcb.getPid())) {
+                tiemposInicio.put(pcb.getPid(), tiempoInicio);
+            }
             pcb.setEstado("EJECUTANDO");
             
             log(">>> P" + pcb.getPid() + " INICIA quantum en t=" + tiempoInicio + 
                 " (Usará: " + tiempoTurno + "/" + tiempoNecesario + ")");
             
             // Simular ejecución
-            Thread.sleep(tiempoTurno * 100);
-            reloj.setTiempo(reloj.getTiempo() + tiempoTurno);
+            Thread.sleep(tiempoTurno * 100); // 100ms por unidad
+            reloj.avanzarTiempo(tiempoTurno);
             
             pcb.actualizarTiempoRestante(tiempoTurno);
             tiempoTotalEjecucion += tiempoTurno;
             
-            // Verificar si terminó
+            // Verificar si terminó esta ráfaga
+            int tiempoFin = reloj.getTiempo();
+            
             if (pcb.getTiempoRestante() <= 0) {
                 pcb.setEstado("TERMINADO");
-                int tiempoFin = reloj.getTiempo();
                 tiemposRetorno.put(pcb.getPid(), tiempoFin - tiemposLlegada.get(pcb.getPid()));
                 
                 log("<<< P" + pcb.getPid() + " TERMINA en t=" + tiempoFin);
                 memoria.liberarProceso(pcb.getPid());
+            } else if (pcb.getEstado().equals("BLOQUEADO")) {
+                log("<<< P" + pcb.getPid() + " entra en E/S. Se bloquea por " + 
+                    pcb.getTiempoBloqueoRestante() + " unidades");
+                colaBloqueados.add(proceso);
             } else {
                 pcb.setEstado("LISTO");
                 log("<<< P" + pcb.getPid() + " Fin de quantum. Vuelve a cola (Faltan: " + 
                     pcb.getTiempoRestante() + ")");
                 colaListos.add(proceso);
+            }
+            
+            // Calcular tiempo de espera si es la primera vez
+            if (!tiemposEspera.containsKey(pcb.getPid())) {
+                int tiempoEspera = tiempoInicio - tiemposLlegada.get(pcb.getPid());
+                tiemposEspera.put(pcb.getPid(), tiempoEspera);
             }
             
             semaforoCPU.release();
@@ -195,19 +242,43 @@ public class Planificador {
                 HiloProceso proceso = iter.next();
                 PCB pcb = proceso.getPcb();
                 
-                if (pcb.getEstado().equals("BLOQUEADO") && 
-                    memoria.hayMemoriaDisponible(pcb.getPaginasRequeridas().size())) {
-                    
+                if (pcb.getEstado().equals("BLOQUEADO") && pcb.getTiempoBloqueoRestante() <= 0) {
+                    // E/S completada
                     pcb.setEstado("LISTO");
                     colaListos.add(proceso);
                     iter.remove();
                     
-                    log("P" + pcb.getPid() + " DESBLOQUEADO - Memoria disponible");
+                    log("P" + pcb.getPid() + " DESBLOQUEADO - E/S completada");
                 }
             }
         } finally {
             lock.unlock();
         }
+    }
+    
+    private void actualizarTiemposBloqueo(int tiempo) {
+        lock.lock();
+        try {
+            for (HiloProceso proceso : colaBloqueados) {
+                PCB pcb = proceso.getPcb();
+                if (pcb.getEstado().equals("BLOQUEADO")) {
+                    pcb.actualizarTiempoBloqueo(tiempo);
+                }
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+    
+    private int obtenerTiempoMinimoBloqueo() {
+        int minTiempo = Integer.MAX_VALUE;
+        for (HiloProceso proceso : colaBloqueados) {
+            PCB pcb = proceso.getPcb();
+            if (pcb.getEstado().equals("BLOQUEADO") && pcb.getTiempoBloqueoRestante() > 0) {
+                minTiempo = Math.min(minTiempo, pcb.getTiempoBloqueoRestante());
+            }
+        }
+        return (minTiempo == Integer.MAX_VALUE) ? 1 : minTiempo;
     }
     
     private void ordenarCola() {
@@ -234,6 +305,11 @@ public class Planificador {
         double tiempoRetornoTotal = 0;
         int procesosCompletados = tiemposRetorno.size();
         
+        if (procesosCompletados == 0) {
+            System.out.println("No hay procesos completados para mostrar métricas.");
+            return;
+        }
+        
         System.out.println("\n+------+------------+------------+------------+");
         System.out.println("| PID  | T. Espera  | T. Retorno | T. Respuesta|");
         System.out.println("+------+------------+------------+------------+");
@@ -241,7 +317,7 @@ public class Planificador {
         for (int pid : tiemposRetorno.keySet()) {
             int espera = tiemposEspera.getOrDefault(pid, 0);
             int retorno = tiemposRetorno.get(pid);
-            int respuesta = espera; // Simplificado
+            int respuesta = tiemposInicio.getOrDefault(pid, 0) - tiemposLlegada.get(pid);
             
             tiempoEsperaTotal += espera;
             tiempoRetornoTotal += retorno;
@@ -253,20 +329,18 @@ public class Planificador {
         
         double tiempoEsperaPromedio = tiempoEsperaTotal / procesosCompletados;
         double tiempoRetornoPromedio = tiempoRetornoTotal / procesosCompletados;
-        double utilizacionCPU = (tiempoTotalEjecucion * 100.0) / reloj.getTiempo();
+        
+        double utilizacionCPU = 0;
+        if (reloj.getTiempo() > 0) {
+            utilizacionCPU = (tiempoTotalEjecucion * 100.0) / reloj.getTiempo();
+        }
         
         System.out.printf("\nTiempo promedio de espera: %.2f\n", tiempoEsperaPromedio);
         System.out.printf("Tiempo promedio de retorno: %.2f\n", tiempoRetornoPromedio);
         System.out.printf("Utilización de CPU: %.1f%%\n", utilizacionCPU);
         System.out.println("Tiempo total del sistema: " + reloj.getTiempo());
         System.out.println("Procesos completados: " + procesosCompletados);
-    }
-    
-    public void imprimirLogEjecucion() {
-        System.out.println("\n=== LOG DE EJECUCIÓN ===");
-        for (String entrada : logEjecucion) {
-            System.out.println(entrada);
-        }
+        System.out.println("Tiempo total de ejecución: " + tiempoTotalEjecucion);
     }
     
     private void log(String mensaje) {
